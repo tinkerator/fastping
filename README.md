@@ -6,7 +6,7 @@ is available at http://search.cpan.org/~mlehmann/AnyEvent-FastPing-2.01/
 
 All original functions haven't been implemented yet.
 
-[![GoDoc](https://pkg.go.dev/zappem.net/pub/net/fastping?status.svg)](https://pkg.go.dev/zappem.net/pub/net/fastping)
+[![Go Reference](https://pkg.go.dev/badge/zappem.net/pub/net/fastping.svg)](https://pkg.go.dev/zappem.net/pub/net/fastping)
 
 ## Installation
 
