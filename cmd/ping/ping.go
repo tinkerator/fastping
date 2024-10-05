@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tatsushid/go-fastping"
+	"zappem.net/pub/net/fastping"
 )
 
 type response struct {
