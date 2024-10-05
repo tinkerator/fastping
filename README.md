@@ -1,17 +1,16 @@
-go-fastping
-===========
+# fastping
 
-go-fastping is a Go language ICMP ping library, inspired by the `AnyEvent::FastPing`
+fastping is a Go language ICMP ping library, inspired by the `AnyEvent::FastPing`
 Perl module, for quickly sending ICMP ECHO REQUEST packets. Original Perl module
 is available at http://search.cpan.org/~mlehmann/AnyEvent-FastPing-2.01/
 
 All original functions haven't been implemented yet.
 
-[![GoDoc](https://godoc.org/github.com/tatsushid/go-fastping?status.svg)](https://godoc.org/github.com/tatsushid/go-fastping)
+[![GoDoc](https://pkg.go.dev/zappem.net/pub/net/fastping?status.svg)](https://pkg.go.dev/zappem.net/pub/net/fastping)
 
 ## Installation
 
-Install and update with `go get -u github.com/tatsushid/go-fastping`
+Install and update with `go get zappem.net/pub/net/fastping`.
 
 ## Examples
 
@@ -43,12 +42,25 @@ passed, it calls the "idle" callback. For more details,
 refer [to the godoc][godoc], and if you need more examples,
 please see "cmd/ping/ping.go".
 
-## Caution
-This package implements ICMP ping using both raw socket and UDP. If your program
-uses this package in raw socket mode, it needs to be run as a root user.
+**Caution** This package implements ICMP ping using both raw socket
+  and UDP. If your program needs to use this package in raw socket
+  mode, it needs to be privileged. Either run it as a `root` user or,
+  under Linux, with the `CAP_NET_RAW` capability enabled. For that
+  latter case, try the following:
+
+```
+$ go build cmd/ping/ping.go
+$ sudo setcap cap_net_raw=ep ./ping
+$ ./ping localhost
+```
 
 ## License
-go-fastping is under MIT License. See the [LICENSE][license] file for details.
+fastping is under MIT License. See the [LICENSE][license] file for details.
 
-[godoc]: http://godoc.org/github.com/tatsushid/go-fastping
-[license]: https://github.com/tatsushid/go-fastping/blob/master/LICENSE
+[godoc]: https://pkg.go.dev/zappem.net/pub/net/fastping
+[license]: https://github.com/tinkerator/fastping/blob/main/LICENSE
+
+## History
+
+This package was originally (2024) cloned from
+https://github.com/tatsushid/go-fastping.
