@@ -13,6 +13,10 @@ import (
 	"zappem.net/pub/net/fastping"
 )
 
+var (
+	debug = flag.Bool("debug", false, "use to enable fastping package debug logging")
+)
+
 type response struct {
 	addr *net.IPAddr
 	rtt  time.Duration
@@ -43,6 +47,7 @@ func main() {
 	if useUDP {
 		p.Network("udp")
 	}
+	p.Debug = *debug
 
 	netProto := "ip4:icmp"
 	if strings.Index(hostname, ":") != -1 {

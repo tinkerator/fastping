@@ -34,7 +34,6 @@
 // for the package, please run like a following
 //
 //	sudo go test
-//
 package fastping
 
 import (
@@ -123,12 +122,18 @@ func newContext() *context {
 	}
 }
 
+// RequestDetail is a record of a requested ping
+type RequestDetail struct {
+	ipaddr *net.IPAddr
+	when   time.Time
+}
+
 // Pinger represents ICMP packet sender/receiver
 type Pinger struct {
 	id  int
 	seq int
 	// key string is IPAddr.String()
-	addrs   map[string]*net.IPAddr
+	addrs   map[string]*RequestDetail
 	network string
 	source  string
 	source6 string
@@ -158,7 +163,7 @@ func NewPinger() *Pinger {
 	return &Pinger{
 		id:      rand.Intn(0xffff),
 		seq:     rand.Intn(0xffff),
-		addrs:   make(map[string]*net.IPAddr),
+		addrs:   make(map[string]*RequestDetail),
 		network: "ip",
 		source:  "",
 		source6: "",
@@ -172,7 +177,7 @@ func NewPinger() *Pinger {
 	}
 }
 
-// Network sets a network endpoints for ICMP ping and returns the previous
+// Network sets a network endpoint for ICMP ping and returns the previous
 // setting. network arg should be "ip" or "udp" string or if others are
 // specified, it returns an error. If this function isn't called, Pinger
 // uses "ip" as default.
@@ -189,8 +194,9 @@ func (p *Pinger) Network(network string) (string, error) {
 	return origNet, nil
 }
 
-// Source sets ipv4/ipv6 source IP for sending ICMP packets and returns the previous
-// setting. Empty value indicates to use system default one (for both ipv4 and ipv6).
+// Source sets the ipv4/ipv6 source IP for sending ICMP packets and
+// returns the previous setting. Empty value indicates to use system
+// default one (for both ipv4 and ipv6).
 func (p *Pinger) Source(source string) (string, error) {
 	// using ipv4 previous value for new empty one
 	origSource := p.source
@@ -231,7 +237,9 @@ func (p *Pinger) AddIP(ipaddr string) error {
 		return fmt.Errorf("%s is not a valid textual representation of an IP address", ipaddr)
 	}
 	p.mu.Lock()
-	p.addrs[addr.String()] = &net.IPAddr{IP: addr}
+	p.addrs[addr.String()] = &RequestDetail{
+		ipaddr: &net.IPAddr{IP: addr},
+	}
 	if isIPv4(addr) {
 		p.hasIPv4 = true
 	} else if isIPv6(addr) {
@@ -245,7 +253,9 @@ func (p *Pinger) AddIP(ipaddr string) error {
 // pointer.
 func (p *Pinger) AddIPAddr(ip *net.IPAddr) {
 	p.mu.Lock()
-	p.addrs[ip.String()] = ip
+	p.addrs[ip.String()] = &RequestDetail{
+		ipaddr: ip,
+	}
 	if isIPv4(ip.IP) {
 		p.hasIPv4 = true
 	} else if isIPv6(ip.IP) {
@@ -275,52 +285,12 @@ func (p *Pinger) RemoveIPAddr(ip *net.IPAddr) {
 	p.mu.Unlock()
 }
 
-// AddHandler adds event handler to Pinger. event arg should be "receive" or
-// "idle" string.
-//
-// **CAUTION** This function is deprecated. Please use OnRecv and OnIdle field
-// of Pinger struct to set following handlers.
-//
-// "receive" handler should be
-//
-//	func(addr *net.IPAddr, rtt time.Duration)
-//
-// type function. The handler is called with a response packet's source address
-// and its elapsed time when Pinger receives a response packet.
-//
-// "idle" handler should be
-//
-//	func()
-//
-// type function. The handler is called when MaxRTT time passed. For more
-// detail, please see Run() and RunLoop().
-func (p *Pinger) AddHandler(event string, handler interface{}) error {
-	switch event {
-	case "receive":
-		if hdl, ok := handler.(func(*net.IPAddr, time.Duration)); ok {
-			p.mu.Lock()
-			p.OnRecv = hdl
-			p.mu.Unlock()
-			return nil
-		}
-		return errors.New("receive event handler should be `func(*net.IPAddr, time.Duration)`")
-	case "idle":
-		if hdl, ok := handler.(func()); ok {
-			p.mu.Lock()
-			p.OnIdle = hdl
-			p.mu.Unlock()
-			return nil
-		}
-		return errors.New("idle event handler should be `func()`")
-	}
-	return errors.New("No such event: " + event)
-}
-
-// Run invokes a single send/receive procedure. It sends packets to all hosts
-// which have already been added by AddIP() etc. and wait those responses. When
-// it receives a response, it calls "receive" handler registered by AddHander().
-// After MaxRTT seconds, it calls "idle" handler and returns to caller with
-// an error value. It means it blocks until MaxRTT seconds passed. For the
+// Run invokes a single send/receive procedure. It sends packets to
+// all hosts which have already been added by AddIP() etc. and waits
+// for those responses. When it receives a response, it calls
+// "receive" handler registered by AddHander().  After MaxRTT seconds,
+// it calls "idle" handler and returns to caller with an error
+// value. It means it blocks until MaxRTT seconds passed. For the
 // purpose of sending/receiving packets over and over, use RunLoop().
 func (p *Pinger) Run() error {
 	p.mu.Lock()
@@ -332,11 +302,12 @@ func (p *Pinger) Run() error {
 	return p.ctx.err
 }
 
-// RunLoop invokes send/receive procedure repeatedly. It sends packets to all
-// hosts which have already been added by AddIP() etc. and wait those responses.
-// When it receives a response, it calls "receive" handler registered by
-// AddHander(). After MaxRTT seconds, it calls "idle" handler, resend packets
-// and wait those response. MaxRTT works as an interval time.
+// RunLoop invokes send/receive procedure repeatedly. It sends packets
+// to all hosts which have already been added by AddIP() etc. and
+// waits for those responses.  When it receives a response, it calls
+// "receive" handler registered by AddHander(). After MaxRTT seconds,
+// it calls "idle" handler, resend packets and wait those
+// response. MaxRTT works as an interval time.
 //
 // This is a non-blocking method so immediately returns. If you want to monitor
 // and stop sending packets, use Done() and Stop() methods. For example,
@@ -488,13 +459,13 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 	p.mu.Unlock()
 	queue := make(map[string]*net.IPAddr)
 	wg := new(sync.WaitGroup)
-	for key, addr := range p.addrs {
+	for key, info := range p.addrs {
 		var typ icmp.Type
 		var cn *icmp.PacketConn
-		if isIPv4(addr.IP) {
+		if isIPv4(info.ipaddr.IP) {
 			typ = ipv4.ICMPTypeEcho
 			cn = conn
-		} else if isIPv6(addr.IP) {
+		} else if isIPv6(info.ipaddr.IP) {
 			typ = ipv6.ICMPTypeEchoRequest
 			cn = conn6
 		} else {
@@ -524,11 +495,12 @@ func (p *Pinger) sendICMP(conn, conn6 *icmp.PacketConn) (map[string]*net.IPAddr,
 			return queue, err
 		}
 
-		queue[key] = addr
-		var dst net.Addr = addr
+		queue[key] = info.ipaddr
+		var dst net.Addr = info.ipaddr
 		if p.network == "udp" {
-			dst = &net.UDPAddr{IP: addr.IP, Zone: addr.Zone}
+			dst = &net.UDPAddr{IP: info.ipaddr.IP, Zone: info.ipaddr.Zone}
 		}
+		info.when = time.Now()
 
 		p.debugln("sendICMP(): Invoke goroutine")
 		wg.Add(1)
@@ -613,9 +585,10 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 
 	addr := ipaddr.String()
 	p.mu.Lock()
-	if _, ok := p.addrs[addr]; !ok {
+	info, ok := p.addrs[addr]
+	if !ok {
 		p.mu.Unlock()
-		return
+		return // addr is not being pinged.
 	}
 	p.mu.Unlock()
 
@@ -635,12 +608,10 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 		return
 	}
 
-	var m *icmp.Message
-	var err error
-	if m, err = icmp.ParseMessage(proto, bytes); err != nil {
+	m, err := icmp.ParseMessage(proto, bytes)
+	if err != nil {
 		return
 	}
-
 	if m.Type != ipv4.ICMPTypeEchoReply && m.Type != ipv6.ICMPTypeEchoReply {
 		return
 	}
@@ -651,9 +622,12 @@ func (p *Pinger) procRecv(recv *packet, queue map[string]*net.IPAddr) {
 		p.mu.Lock()
 		if pkt.ID == p.id && pkt.Seq == p.seq {
 			rtt = time.Since(bytesToTime(pkt.Data[:TimeSliceLength]))
+		} else {
+			rtt = time.Since(info.when)
 		}
 		p.mu.Unlock()
 	default:
+		p.debugf("no support for %#v", pkt)
 		return
 	}
 

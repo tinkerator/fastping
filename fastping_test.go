@@ -84,7 +84,7 @@ func TestAddIP(t *testing.T) {
 	}
 	for _, tt := range addIPTests {
 		if tt.expect {
-			if !p.addrs[tt.host].IP.Equal(tt.addr.IP) {
+			if !p.addrs[tt.host].ipaddr.IP.Equal(tt.addr.IP) {
 				t.Errorf("AddIP didn't save IPAddr: %v", tt.host)
 			}
 		}
@@ -101,7 +101,7 @@ func TestAddIPAddr(t *testing.T) {
 
 	for i, tt := range addIPAddrTests {
 		p.AddIPAddr(tt)
-		if !p.addrs[tt.String()].IP.Equal(tt.IP) {
+		if !p.addrs[tt.String()].ipaddr.IP.Equal(tt.IP) {
 			t.Errorf("[%d] AddIPAddr didn't save IPAddr: %v", i, tt.IP)
 		}
 		if len(tt.IP.To4()) == net.IPv4len {
