@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -82,11 +83,12 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
 
+	var good, bad int64
 loop:
 	for {
 		select {
 		case <-c:
-			fmt.Println("get interrupted")
+			fmt.Println("interrupted")
 			break loop
 		case res := <-onRecv:
 			if _, ok := results[res.addr.String()]; ok {
@@ -96,8 +98,10 @@ loop:
 			for host, r := range results {
 				if r == nil {
 					fmt.Printf("%s : unreachable %v\n", host, time.Now())
+					bad++
 				} else {
 					fmt.Printf("%s : %v %v\n", host, r.rtt, time.Now())
+					good++
 				}
 				results[host] = nil
 			}
@@ -110,4 +114,7 @@ loop:
 	}
 	signal.Stop(c)
 	p.Stop()
+
+	den := float64(good+bad) + .0001
+	log.Printf("attempts=%.0f, success=%d(%.1f%%), failure=%d(%.1f%%)", den, good, 100*float64(good)/den, bad, 100*float64(bad)/den)
 }
